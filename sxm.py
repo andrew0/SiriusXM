@@ -251,7 +251,6 @@ class SiriusXM:
         return '\n'.join(lines)
 
     def get_segment(self, path, max_attempts=5):
-        print(path)
         url = '{}/{}'.format(self.LIVE_PRIMARY_HLS, path)
         params = {
             'token': self.get_sxmak_token(),
