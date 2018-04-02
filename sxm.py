@@ -63,29 +63,29 @@ class SiriusXM:
 
     def login(self):
         postdata = {
-        	'moduleList': {
-        		'modules': [{
-        			'moduleRequest': {
-        				'resultTemplate': 'web',
-        				'deviceInfo': {
-        					'osVersion': 'Mac',
-        					'platform': 'Web',
-        					'sxmAppVersion': '3.1802.10011.0',
-        					'browser': 'Safari',
-        					'browserVersion': '11.0.3',
-        					'appRegion': 'US',
-        					'deviceModel': 'K2WebClient',
-        					'clientDeviceId': 'null',
-        					'player': 'html5',
-        					'clientDeviceType': 'web',
-        				},
-        				'standardAuth': {
-        					'username': self.username,
-        					'password': self.password,
-        				},
-        			},
-        		}],
-        	},
+            'moduleList': {
+                'modules': [{
+                    'moduleRequest': {
+                        'resultTemplate': 'web',
+                        'deviceInfo': {
+                            'osVersion': 'Mac',
+                            'platform': 'Web',
+                            'sxmAppVersion': '3.1802.10011.0',
+                            'browser': 'Safari',
+                            'browserVersion': '11.0.3',
+                            'appRegion': 'US',
+                            'deviceModel': 'K2WebClient',
+                            'clientDeviceId': 'null',
+                            'player': 'html5',
+                            'clientDeviceType': 'web',
+                        },
+                        'standardAuth': {
+                            'username': self.username,
+                            'password': self.password,
+                        },
+                    },
+                }],
+            },
         }
         data = self.post('modify/authentication', postdata, authenticate=False)
         if not data:
@@ -103,25 +103,25 @@ class SiriusXM:
             return False
 
         postdata = {
-        	'moduleList': {
-        		'modules': [{
-        			'moduleRequest': {
-        				'resultTemplate': 'web',
-        				'deviceInfo': {
-        					'osVersion': 'Mac',
-        					'platform': 'Web',
-        					'clientDeviceType': 'web',
-        					'sxmAppVersion': '3.1802.10011.0',
-        					'browser': 'Safari',
-        					'browserVersion': '11.0.3',
-        					'appRegion': 'US',
-        					'deviceModel': 'K2WebClient',
-        					'player': 'html5',
-        					'clientDeviceId': 'null'
-        				}
-        			}
-        		}]
-        	}
+            'moduleList': {
+                'modules': [{
+                    'moduleRequest': {
+                        'resultTemplate': 'web',
+                        'deviceInfo': {
+                            'osVersion': 'Mac',
+                            'platform': 'Web',
+                            'clientDeviceType': 'web',
+                            'sxmAppVersion': '3.1802.10011.0',
+                            'browser': 'Safari',
+                            'browserVersion': '11.0.3',
+                            'appRegion': 'US',
+                            'deviceModel': 'K2WebClient',
+                            'player': 'html5',
+                            'clientDeviceId': 'null'
+                        }
+                    }
+                }]
+            }
         }
         data = self.post('resume?OAtrial=false', postdata, authenticate=False)
         if not data:
@@ -279,18 +279,18 @@ class SiriusXM:
         # download channel list if necessary
         if not self.channels:
             postdata = {
-            	'moduleList': {
-            		'modules': [{
-            			'moduleArea': 'Discovery',
-            			'moduleType': 'ChannelListing',
-            			'moduleRequest': {
-            				'consumeRequests': [],
-            				'resultTemplate': 'responsive',
-            				'alerts': [],
-            				'profileInfos': []
-            			}
-            		}]
-            	}
+                'moduleList': {
+                    'modules': [{
+                        'moduleArea': 'Discovery',
+                        'moduleType': 'ChannelListing',
+                        'moduleRequest': {
+                            'consumeRequests': [],
+                            'resultTemplate': 'responsive',
+                            'alerts': [],
+                            'profileInfos': []
+                        }
+                    }]
+                }
             }
             data = self.post('get', postdata)
             if not data:
