@@ -178,7 +178,7 @@ class SiriusXM:
                 self.log('Session expired, logging in and authenticating')
                 if self.authenticate():
                     self.log('Successfully authenticated')
-                    return self.get_playlist_url(max_attempts - 1)
+                    return self.get_playlist_url(guid, channel_id, use_cache, max_attempts - 1)
                 else:
                     self.log('Failed to authenticate')
                     return None
@@ -338,6 +338,9 @@ def make_sirius_handler(username, password):
                 self.send_header('Content-Type', 'text/plain')
                 self.end_headers()
                 self.wfile.write(self.HLS_AES_KEY)
+            else:
+                self.send_response(500)
+                self.end_headers()
     return SiriusHandler
 
 if __name__ == '__main__':
