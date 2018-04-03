@@ -303,8 +303,10 @@ class SiriusXM:
                 return (None, None)
 
         name = name.lower()
-        channel = next(filter(lambda x: x['name'].lower() == name or x['channelId'] == name, self.channels), None)
-        return (channel['channelGuid'], channel['channelId']) if channel else (None, None)
+        for x in self.channels:
+            if x.get('name', '').lower() == name or x.get('channelId', '').lower() == name or x.get('siriusChannelNumber') == name:
+                return (x['channelGuid'], x['channelId'])
+        return (None, None)
 
 def make_sirius_handler(username, password):
     class SiriusHandler(BaseHTTPRequestHandler):
