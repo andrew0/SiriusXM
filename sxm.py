@@ -17,7 +17,6 @@ from datetime import timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from concurrent.futures import ThreadPoolExecutor
 
-
 class AuthenticationError(Exception):
     pass
 
@@ -46,19 +45,10 @@ class SiriusXM:
     REST_FORMAT = 'https://player.siriusxm.com/rest/v2/experience/modules/{}'
     LIVE_PRIMARY_HLS = 'https://siriusxm-priprodlive.akamaized.net'
 
-    LAYERS = {
-        'cut': 0,
-        'segment': 1,
-        'episode': 2,
-        'future-episode': 3,
-        'companioncontent': 4
-    }
-
     def __init__(self, username, password):
-        self.session = requests.Session()
-        self.session.headers.update({'User-Agent': self.USER_AGENT})
         self.username = username
         self.password = password
+        self.reset_session()
         self.playlists = {}
         self.channels = None
 
@@ -98,21 +88,13 @@ class SiriusXM:
             self.log('Error decoding json for method \'{}\''.format(method))
             return None
 
-    @retry(wait=wait_fixed(1), stop=stop_after_attempt(10))
     def post(self, method, postdata, authenticate=True):
         if authenticate and not self.is_session_authenticated() and not self.authenticate():
             self.log('Unable to authenticate')
             return None
 
-        res = None
-
-        try:
-            res = self.session.post(self.REST_FORMAT.format(method), data=json.dumps(postdata))
-        except requests.exceptions.ConnectionError as e:
-            self.log("Connection error on POST")
-            raise(e)
-
-        if res is not None and res.status_code != 200:
+        res = self.session.post(self.REST_FORMAT.format(method), data=json.dumps(postdata))
+        if res.status_code != 200:
             self.log('Received status code {} for method \'{}\''.format(res.status_code, method))
             return None
 
@@ -155,13 +137,19 @@ class SiriusXM:
             return data['ModuleListResponse']['status'] == 1 and self.is_logged_in()
         except KeyError:
             self.log('Error decoding json response for login')
-            import pdb; pdb.set_trace()
             return False
 
+    def reset_session(self):
+        self.session = requests.Session()
+        self.session.headers.update({'User-Agent': self.USER_AGENT})
+
+    @retry(wait=wait_fixed(3), stop=stop_after_attempt(10))
     def authenticate(self):
         if not self.is_logged_in() and not self.login():
-            self.log("Unable to authenticate because login failed")
-            return False
+            self.log("Authentication failed.. retrying")
+            self.reset_session()
+            raise AuthenticationError("Reset session")
+
             # raise AuthenticationError("Unable to authenticate because login failed")
 
         postdata = {
@@ -216,22 +204,26 @@ class SiriusXM:
         if now_playing is None:
             pass
 
+        for marker_list in now_playing['ModuleListResponse']['moduleList']['modules'][0]['moduleResponse']['liveChannelData']['markerLists']:
 
-        for marker in now_playing['ModuleListResponse']['moduleList']['modules'][0]['moduleResponse']['liveChannelData']['markerLists'][self.LAYERS['episode']]['markers']:
-            start = datetime.datetime.strptime(marker['timestamp']['absolute'], '%Y-%m-%dT%H:%M:%S.%f%z')
-            end = start + timedelta(seconds=marker['duration'])
+            # The location of the episode layer is not always the same!
+            if marker_list['layer'] == 'episode':
 
-            start = start.replace(tzinfo=None)
-            end = end.replace(tzinfo=None)
+                for marker in marker_list['markers']:
+                    start = datetime.datetime.strptime(marker['timestamp']['absolute'], '%Y-%m-%dT%H:%M:%S.%f%z')
+                    end = start + timedelta(seconds=marker['duration'])
 
-            episodes.append({
-                    'mediumTitle': marker['episode'].get('mediumTitle', 'UnknownMediumTitle'),
-                    'longTitle': marker['episode'].get('longTitle', 'UnknownLongTitle'),
-                    'shortDescription': marker['episode'].get('shortDescription', 'UnknownShortDescription'),
-                    'longDescription': marker['episode'].get('longDescription', 'UnknownLongDescription'),
-                    'start': start,
-                    'end': end
-                })
+                    start = start.replace(tzinfo=None)
+                    end = end.replace(tzinfo=None)
+
+                    episodes.append({
+                            'mediumTitle': marker['episode'].get('mediumTitle', 'UnknownMediumTitle'),
+                            'longTitle': marker['episode'].get('longTitle', 'UnknownLongTitle'),
+                            'shortDescription': marker['episode'].get('shortDescription', 'UnknownShortDescription'),
+                            'longDescription': marker['episode'].get('longDescription', 'UnknownLongDescription'),
+                            'start': start,
+                            'end': end
+                        })
 
         return episodes
 
@@ -501,6 +493,7 @@ class SiriusXMRipper(object):
 
         while episode is None or episode.get('longTitle') == 'UnknownLongTitle':
             self.handler.sxm.log("Current episode registered incorrectly; fetching again..")
+            self.handler.sxm.reset_session()
             time.sleep(30)
 
         self.episode = episode
