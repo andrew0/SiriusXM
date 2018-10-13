@@ -207,7 +207,7 @@ class SiriusXM:
         for marker_list in now_playing['ModuleListResponse']['moduleList']['modules'][0]['moduleResponse']['liveChannelData']['markerLists']:
 
             # The location of the episode layer is not always the same!
-            if marker_list['layer'] == 'episode':
+            if marker_list['layer'] in ['episode', 'future-episode']:
 
                 for marker in marker_list['markers']:
                     start = datetime.datetime.strptime(marker['timestamp']['absolute'], '%Y-%m-%dT%H:%M:%S.%f%z')
@@ -215,6 +215,9 @@ class SiriusXM:
 
                     start = start.replace(tzinfo=None)
                     end = end.replace(tzinfo=None)
+
+                    if datetime.datetime.utcnow() > end:
+                        continue
 
                     episodes.append({
                             'mediumTitle': marker['episode'].get('mediumTitle', 'UnknownMediumTitle'),
@@ -226,17 +229,6 @@ class SiriusXM:
                         })
 
         return episodes
-
-    def get_current_episode(self):
-        for episode in self.get_episodes('shade45'):
-            now = datetime.datetime.utcnow()
-
-            if not all(['start' in episode, 'end' in episode]):
-                self.log("Missing start/end keys in episode: {}".format(episode))
-                continue
-
-            if episode['start'] < now < episode['end']:
-                return episode
 
     def get_now_playing(self, guid, channel_id):
         params = {
@@ -342,7 +334,10 @@ class SiriusXM:
         playlist_entries = []
         for line in res.text.split('\n'):
             line = line.strip()
-            playlist_entries.append(re.sub("[^\/]\w+\.m3u8", line, re.findall("AAC_Data.*", url)[0]))
+            if line.endswith('.aac'):
+                playlist_entries.append(re.sub("[^\/]\w+\.m3u8", line, re.findall("AAC_Data.*", url)[0]))
+            else:
+                playlist_entries.append(line)
 
         return '\n'.join(playlist_entries)
 
@@ -430,8 +425,7 @@ def make_sirius_handler(username, password):
                         self.end_headers()
                         self.wfile.write(data)
                     except BrokenPipeError as e:
-                        self.sxm.log("Error sending stream data to the client; connection terminated?")
-                        traceback.print_exc()
+                        self.sxm.log("Client stream closed!")
 
                 else:
                     self.send_response(500)
@@ -472,14 +466,10 @@ class SiriusXMRipper(object):
         self.recorded_shows = json.load(open('config.json', 'r'))['shows']
         self.start = time.time()
 
-    def should_record_current_episode(self):
+    def should_record_episode(self, episode):
         shows = re.compile('|'.join(self.recorded_shows), re.IGNORECASE)
 
-        if self.episode is None:
-            self.handler.sxm.log("Current episode is None; cannot check if current episode should be recorded")
-            return False
-
-        for k, v in self.episode.items():
+        for k, v in episode.items():
             try:
                 if shows.findall(v):
                     return True
@@ -488,50 +478,62 @@ class SiriusXMRipper(object):
 
         return False
 
-    def wait_for_episode_title(self):
-        episode = self.handler.sxm.get_current_episode()
+    def get_current_episode(self, episodes):
+        for episode in episodes:
+            now = datetime.datetime.utcnow()
 
-        while episode is None or episode.get('longTitle') == 'UnknownLongTitle':
-            self.handler.sxm.log("Current episode registered incorrectly; fetching again..")
-            self.handler.sxm.reset_session()
-            time.sleep(30)
+            if episode['start'] < now < episode['end']:
+                return episode
 
-        self.episode = episode
+        return None
+
+    def display_episodes(self, episodes):
+        for episode in episodes:
+            if episode['start'] < datetime.datetime.utcnow() < episode['end']:
+                self.handler.sxm.log(
+                    "\033[0;32mCurrent Episode:\033[0m {} - {} "
+                    "(\033[0;32m{}\033[0m remaining)".format(
+                        episode['longTitle'], episode['longDescription'],
+                        episode['end'] - datetime.datetime.utcnow()))
+            elif episode['start'] > datetime.datetime.utcnow():
+                self.handler.sxm.log(
+                    "\033[0;36mNext Episode:\033[0m {} - {} "
+                    "(\033[0;36m{}\033[0m long)".format(
+                        episode['longTitle'], episode['longDescription'],
+                        episode['end'] - datetime.datetime.utcnow()))
 
     def poll_episodes(self):
+
+        episodes = None
+        episode = None
+
         while True:
-            try:
-                self.wait_for_episode_title()
+            if not episodes:
+                episodes = self.handler.sxm.get_episodes('shade45')
 
-                if self.last_episode != self.episode:
-                    self.last_episode = self.episode
+            if episode is None or episode is not None and datetime.datetime.utcnow() > episode['end']:
+                self.display_episodes(episodes)
 
-                    self.handler.sxm.log(
-                        "\033[0;32mCurrent Episode:\033[0m {} - {}"
-                        "(\033[0;32m{}\033[0m remaining)".format(
-                            self.episode['longTitle'], self.episode['longDescription'],
-                            self.episode['end'] - datetime.datetime.utcnow()))
+                episode = episodes.pop(episodes.index(self.get_current_episode(episodes)))
 
-                    if self.proc is not None:
-                        self.proc.terminate()
-                        self.proc = None
+                # A new episode has started; terminate recording
+                if self.proc is not None:
+                    self.proc.terminate()
+                    self.proc = None
 
-            except Exception as e:
-                self.handler.sxm.log("Exception occurred in Ripper.poll_episodes: {}".format(e))
-                traceback.print_exc()
-
-            if self.should_record_current_episode():
+            if self.should_record_episode(episode):
                 if self.proc is None or self.proc is not None and self.proc.poll() is not None:
-                    self.rip_stream()
+                    self.rip_episode(episode)
 
             time.sleep(60)
 
-    def rip_stream(self):
+    def rip_episode(self, episode):
         try:
-            filename = time.strftime("%Y-%m-%d_%H_%M_%S_{}.mp3".format('_'.join(self.episode['mediumTitle'].split())))
+            filename = time.strftime("%Y-%m-%d_%H_%M_%S_{}.mp3".format('_'.join(episode['mediumTitle'].split())))
             cmd = "/usr/local/bin/ffmpeg -i http://127.0.0.1:8888/shade45.m3u8 -acodec libmp3lame -ac 2 -ab 160k {}".format(filename)
             self.handler.sxm.log("Executing: {}".format(cmd))
             self.proc = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, shell=False)
+            self.handler.sxm.log("Launched process: {}".format(self.proc.pid))
         except Exception as e:
             self.handler.sxm.log("Exception occurred in Ripper.rip_stream: {}".format(e))
 
