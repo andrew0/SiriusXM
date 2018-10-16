@@ -1,3 +1,5 @@
+import argparse
+import os
 import re
 import requests
 import base64
@@ -11,7 +13,6 @@ import traceback
 from tenacity import retry
 from tenacity import stop_after_attempt
 from tenacity import wait_fixed
-from tenacity import retry_if_result
 
 from datetime import timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -396,10 +397,10 @@ class SiriusXM:
                 return (x['channelGuid'], x['channelId'])
         return (None, None)
 
-def make_sirius_handler(username, password):
+def make_sirius_handler(args):
     class SiriusHandler(BaseHTTPRequestHandler):
         HLS_AES_KEY = base64.b64decode('0Nsco7MAgxowGvkUT8aYag==')
-        sxm = SiriusXM(username, password)
+        sxm = SiriusXM(args.user, args.passwd)
 
         def do_GET(self):
             if self.path.endswith('.m3u8'):
@@ -446,7 +447,10 @@ def make_sirius_handler(username, password):
 
 
 def start_httpd(handler):
-    httpd = HTTPServer(('', int(sys.argv[3])), handler)
+    args = parse_args()
+
+    httpd = HTTPServer(('', int(args.port)), handler)
+
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
@@ -456,7 +460,7 @@ def start_httpd(handler):
 
 
 class SiriusXMRipper(object):
-    def __init__(self, handler):
+    def __init__(self, handler, args):
         self.handler = handler
         self.episode = None
         self.last_episode = None
@@ -464,6 +468,12 @@ class SiriusXMRipper(object):
         self.proc = None
         self.completed_files = []
         self.recorded_shows = json.load(open('config.json', 'r'))['shows']
+
+        self.handler.sxm.log("\033[0;4;32mRecording the following shows\033[0m")
+        for show in self.recorded_shows:
+            self.handler.sxm.log("\t{}".format(show))
+
+        self.channel = args.channel
         self.start = time.time()
 
     def should_record_episode(self, episode):
@@ -488,19 +498,41 @@ class SiriusXMRipper(object):
         return None
 
     def display_episodes(self, episodes):
-        for episode in episodes:
+        for episode in sorted(episodes, key=lambda e: e['start']):
             if episode['start'] < datetime.datetime.utcnow() < episode['end']:
                 self.handler.sxm.log(
-                    "\033[0;32mCurrent Episode:\033[0m {} - {} "
+                    "\033[0;32mNow Playing:\033[0m {} - {} "
                     "(\033[0;32m{}\033[0m remaining)".format(
                         episode['longTitle'], episode['longDescription'],
                         episode['end'] - datetime.datetime.utcnow()))
             elif episode['start'] > datetime.datetime.utcnow():
                 self.handler.sxm.log(
-                    "\033[0;36mNext Episode:\033[0m {} - {} "
+                    "\033[0;36mComing Up:\033[0m {} - {} "
                     "(\033[0;36m{}\033[0m long)".format(
                         episode['longTitle'], episode['longDescription'],
-                        episode['end'] - datetime.datetime.utcnow()))
+                        episode['end'] - episode['start']))
+
+    def get_episode_list(self):
+        episodes = None
+        episode = None
+
+        while not episodes:
+            episodes = self.handler.sxm.get_episodes(self.channel)
+
+            if episodes is not None:
+                episode = self.get_current_episode(episodes)
+
+                if episode is not None:
+                    break
+                else:
+                    time.sleep(15)
+                    continue
+
+            else:
+                time.sleep(15)
+                self.handler.sxm.log("Waiting for episode list..")
+
+        return episodes
 
     def poll_episodes(self):
 
@@ -508,13 +540,21 @@ class SiriusXMRipper(object):
         episode = None
 
         while True:
-            if not episodes:
-                episodes = self.handler.sxm.get_episodes('shade45')
 
-            if episode is None or episode is not None and datetime.datetime.utcnow() > episode['end']:
+            if episodes is None:
+                episodes = self.get_episode_list()
+
+            if episode is None or datetime.datetime.utcnow() > episode['end']:
                 self.display_episodes(episodes)
 
-                episode = episodes.pop(episodes.index(self.get_current_episode(episodes)))
+                current_episode = self.get_current_episode(episodes)
+
+                if not current_episode or current_episode['longTitle'] == 'UnknownLongTitle':
+                    episodes = None
+                    time.sleep(60)
+                    continue
+
+                episode = episodes.pop(episodes.index(current_episode))
 
                 # A new episode has started; terminate recording
                 if self.proc is not None:
@@ -525,12 +565,15 @@ class SiriusXMRipper(object):
                 if self.proc is None or self.proc is not None and self.proc.poll() is not None:
                     self.rip_episode(episode)
 
-            time.sleep(60)
+            time.sleep(1)
 
     def rip_episode(self, episode):
         try:
             filename = time.strftime("%Y-%m-%d_%H_%M_%S_{}.mp3".format('_'.join(episode['mediumTitle'].split())))
-            cmd = "/usr/local/bin/ffmpeg -i http://127.0.0.1:8888/shade45.m3u8 -acodec libmp3lame -ac 2 -ab 160k {}".format(filename)
+
+            cmd = "/usr/local/bin/ffmpeg -i http://127.0.0.1:8888/{}.m3u8 -acodec libmp3lame -ac 2 -ab 160k {}".format(
+                self.channel, filename)
+
             self.handler.sxm.log("Executing: {}".format(cmd))
             self.proc = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, shell=False)
             self.handler.sxm.log("Launched process: {}".format(self.proc.pid))
@@ -538,22 +581,37 @@ class SiriusXMRipper(object):
             self.handler.sxm.log("Exception occurred in Ripper.rip_stream: {}".format(e))
 
 
-if __name__ == '__main__':
-    sirius_handler = make_sirius_handler(sys.argv[1], sys.argv[2])
-    ripper = SiriusXMRipper(sirius_handler)
+def parse_args():
+    args = argparse.ArgumentParser(description="It does boss shit")
+    args.add_argument('-u', '--user', help='The user to use for authentication', default=os.environ['SIRIUSXM_USER'])
+    args.add_argument('-p', '--passwd', help='The pass to use for authentication', default=os.environ['SIRIUSXM_PASS'])
+    args.add_argument('--port', help='The port to listen on', default=8888)
+    args.add_argument('-c', '--channel', help='The channel(s) to listen on. Supports multiple uses of this arg', required=True)
+    args.add_argument('-r', '--rip', help='Record the stream(s)', default=False, action='store_true')
+
+    return args.parse_args()
+
+
+def main():
+    args = parse_args()
+    sirius_handler = make_sirius_handler(args)
+    ripper = SiriusXMRipper(sirius_handler, args)
 
     executor = ThreadPoolExecutor(max_workers=2)
-
-    if len(sys.argv) < 4:
-        print('usage: python sxm.py [username] [password] [port]')
-        sys.exit(1)
-
     httpd_thread = executor.submit(start_httpd, sirius_handler)
-    episode_thread = executor.submit(ripper.poll_episodes)
+    ripper_thread = executor.submit(ripper.poll_episodes)
 
     while True:
-        for index, thread in enumerate([httpd_thread, episode_thread]):
-            if thread.done():
-                sirius_handler.sxm.log("Thread{} exited/terminated -- result:{}".format(index, thread.result()))
+        if httpd_thread.done():
+            sirius_handler.sxm.log("HTTPD Thread{} exited/terminated -- result:{}".format(index, thread.result()))
+            httpd_thread = executor.submit(start_httpd, sirius_handler)
+
+        if ripper_thread.done():
+            sirius_handler.sxm.log("Ripper Thread{} exited/terminated -- result:{}".format(index, thread.result()))
+            ripper_thread = executor.submit(ripper.poll_episodes)
 
         time.sleep(60)
+
+
+if __name__ == '__main__':
+    main()
