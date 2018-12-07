@@ -1,3 +1,4 @@
+import argparse
 import requests
 import base64
 import urllib.parse
@@ -185,7 +186,7 @@ class SiriusXM:
             else:
                 self.log('Reached max attempts for playlist')
                 return None
-        elif status == 0:
+        elif message_code != 100:
             self.log('Received error {} {}'.format(message_code, message))
             return None
 
@@ -214,9 +215,13 @@ class SiriusXM:
         if res.status_code != 200:
             self.log('Received status code {} on playlist variant retrieval'.format(res.status_code))
             return None
-
-        variant = next(filter(lambda x: x.endswith('.m3u8'), map(lambda x: x.rstrip(), res.text.split('\n'))), None)
-        return '{}/{}'.format(url.rsplit('/', 1)[0], variant) if variant else None
+        
+        for x in res.text.split('\n'):
+            if x.rstrip().endswith('.m3u8'):
+                # first variant should be 256k one
+                return '{}/{}'.format(url.rsplit('/', 1)[0], x.rstrip())
+        
+        return None
 
     def get_playlist(self, name, use_cache=True):
         guid, channel_id = self.get_channel(name)
@@ -241,13 +246,12 @@ class SiriusXM:
             return None
 
         # add base path to segments
-        lines = list(map(lambda x: x.rstrip(), res.text.split('\n')))
+        base_url = url.rsplit('/', 1)[0]
+        base_path = base_url[8:].split('/', 1)[1]
+        lines = res.text.split('\n')
         for x in range(len(lines)):
-            line = lines[x].rstrip()
-            if line.endswith('.aac'):
-                base_url = url.rsplit('/', 1)[0]
-                base_path = base_url[8:].split('/', 1)[1]
-                lines[x] = '{}/{}'.format(base_path, line)
+            if lines[x].rstrip().endswith('.aac'):
+                lines[x] = '{}/{}'.format(base_path, lines[x])
         return '\n'.join(lines)
 
     def get_segment(self, path, max_attempts=5):
@@ -273,8 +277,8 @@ class SiriusXM:
             return None
 
         return res.content
-
-    def get_channel(self, name):
+    
+    def get_channels(self):
         # download channel list if necessary
         if not self.channels:
             postdata = {
@@ -300,22 +304,23 @@ class SiriusXM:
                 self.channels = data['ModuleListResponse']['moduleList']['modules'][0]['moduleResponse']['contentData']['channelListing']['channels']
             except (KeyError, IndexError):
                 self.log('Error parsing json response for channels')
-                return (None, None)
+                return []
+        return self.channels
 
+    def get_channel(self, name):
         name = name.lower()
-        for x in self.channels:
+        for x in self.get_channels():
             if x.get('name', '').lower() == name or x.get('channelId', '').lower() == name or x.get('siriusChannelNumber') == name:
                 return (x['channelGuid'], x['channelId'])
         return (None, None)
 
-def make_sirius_handler(username, password):
+def make_sirius_handler(sxm):
     class SiriusHandler(BaseHTTPRequestHandler):
         HLS_AES_KEY = base64.b64decode('0Nsco7MAgxowGvkUT8aYag==')
-        sxm = SiriusXM(username, password)
 
         def do_GET(self):
             if self.path.endswith('.m3u8'):
-                data = self.sxm.get_playlist(self.path.rsplit('/', 1)[1][:-5])
+                data = sxm.get_playlist(self.path.rsplit('/', 1)[1][:-5])
                 if data:
                     self.send_response(200)
                     self.send_header('Content-Type', 'application/x-mpegURL')
@@ -325,7 +330,7 @@ def make_sirius_handler(username, password):
                     self.send_response(500)
                     self.end_headers()
             elif self.path.endswith('.aac'):
-                data = self.sxm.get_segment(self.path[1:])
+                data = sxm.get_segment(self.path[1:])
                 if data:
                     self.send_response(200)
                     self.send_header('Content-Type', 'audio/x-aac')
@@ -345,13 +350,30 @@ def make_sirius_handler(username, password):
     return SiriusHandler
 
 if __name__ == '__main__':
-    if len(sys.argv) < 4:
-        print('usage: python sxm.py [username] [password] [port]')
-        sys.exit(1)
-
-    httpd = HTTPServer(('', int(sys.argv[3])), make_sirius_handler(sys.argv[1], sys.argv[2]))
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    httpd.server_close()
+    parser = argparse.ArgumentParser(description='SiriusXM proxy')
+    parser.add_argument('username')
+    parser.add_argument('password')
+    parser.add_argument('-l', '--list', required=False, action='store_true', default=False)
+    parser.add_argument('-p', '--port', required=False, default=9999, type=int)
+    args = vars(parser.parse_args())
+    
+    sxm = SiriusXM(args['username'], args['password'])
+    if args['list']:
+        channels = list(sorted(sxm.get_channels(), key=lambda x: (not x.get('isFavorite', False), int(x.get('siriusChannelNumber', 9999)))))
+        
+        l1 = max(len(x.get('channelId', '')) for x in channels)
+        l2 = max(len(str(x.get('siriusChannelNumber', 0))) for x in channels)
+        l3 = max(len(x.get('name', '')) for x in channels)
+        print('{} | {} | {}'.format('ID'.ljust(l1), 'Num'.ljust(l2), 'Name'.ljust(l3)))
+        for channel in channels:
+            cid = channel.get('channelId', '').ljust(l1)[:l1]
+            cnum = str(channel.get('siriusChannelNumber', '??')).ljust(l2)[:l2]
+            cname = channel.get('name', '??').ljust(l3)[:l3]
+            print('{} | {} | {}'.format(cid, cnum, cname))
+    else:
+        httpd = HTTPServer(('', args['port']), make_sirius_handler(sxm))
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        httpd.server_close()
