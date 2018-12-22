@@ -667,6 +667,10 @@ class SiriusXMRipper(object):
                 # A new episode has started; terminate recording
                 if self.proc is not None:
                     self.proc.terminate()
+                    while not self.proc.poll():
+                        self.handler.sxm.log("Waiting for ffmpeg to terminate..")
+                        time.sleep(1)
+                        
                     self.proc = None
                     self.tag_file(self.current_filename)
 
@@ -705,7 +709,7 @@ class SiriusXMRipper(object):
             self.handler.sxm.log("Tagging file before recovering stream..")
             self.tag_file(self.current_filename)
 
-    def tag_file(self, file):
+    def tag_file(self, filename):
         playlist = None
         with open("config.json", encoding="utf-8") as f:
             text = f.read()
@@ -716,11 +720,11 @@ class SiriusXMRipper(object):
         date_regex = re.compile("^(\d{4})-(\d{2})-(\d{2})")
         track_parts = defaultdict(int)
 
-        if not f.endswith(".mp3"):
+        if not filename.endswith(".mp3"):
             return
 
-        playlist_match = playlist_regex.findall(file)
-        date = next(date_regex.finditer(file), "")
+        playlist_match = playlist_regex.findall(filename)
+        date = next(date_regex.finditer(filename), "")
 
         if not all([date, playlist_match]):
             return
@@ -740,14 +744,14 @@ class SiriusXMRipper(object):
         if track_parts.get(title) > 1:
             tag_title += " (Part {})".format(track_parts.get(title))
 
-        self.log(
+        self.handler.sxm.log(
             "File: {} | Playlist: {} | Date: {}".format(
-                file, playlist_match, "".join(date.groups())
+                filename, playlist_match, "".join(date.groups())
             )
         )
 
-        mp3 = eyed3.load(file)
-        self.log(playlist["tags"].get(playlist_match).get("album"))
+        mp3 = eyed3.load(filename)
+        self.handler.sxm.log(playlist["tags"].get(playlist_match).get("album"))
         mp3.tag.album = playlist["tags"].get(playlist_match).get("album")
         mp3.tag.album_artist = playlist["tags"].get(playlist_match).get("artist")
         mp3.tag.artist = playlist["tags"].get(playlist_match).get("artist")
@@ -761,8 +765,8 @@ class SiriusXMRipper(object):
         with open("config.json", "w") as config:
             config.write(json.dumps(playlist, indent=4))
 
-        self.log("Track parts")
-        self.log(json.dumps(track_parts, indent=4))
+        self.handler.sxm.log("Track parts")
+        self.handler.sxm.log(json.dumps(track_parts, indent=4))
 
 
 def parse_args():
@@ -771,13 +775,13 @@ def parse_args():
         "-u",
         "--user",
         help="The user to use for authentication",
-        default=os.environ["SIRIUSXM_USER"],
+        default=os.environ.get("SIRIUSXM_USER"),
     )
     args.add_argument(
         "-p",
         "--passwd",
         help="The pass to use for authentication",
-        default=os.environ["SIRIUSXM_PASS"],
+        default=os.environ.get("SIRIUSXM_PASS"),
     )
     args.add_argument("--port", help="The port to listen on", default=8888, type=int)
     args.add_argument(
@@ -823,6 +827,10 @@ def get_channel_list(sxm):
 
 def main():
     args = parse_args()
+    if args.user is None or args.passwd is None:
+        raise Exception("Missing username or password. You can also set these as environment variables "
+                        "SIRIUSXM_USER, SIRIUSXM_PASS")
+
     sirius_handler = make_sirius_handler(args)
 
     if args.list:
