@@ -670,7 +670,7 @@ class SiriusXMRipper(object):
                     while not self.proc.poll():
                         self.handler.sxm.log("Waiting for ffmpeg to terminate..")
                         time.sleep(1)
-                        
+
                     self.proc = None
                     self.tag_file(self.current_filename)
 
@@ -770,7 +770,9 @@ class SiriusXMRipper(object):
 
 
 def parse_args():
-    args = argparse.ArgumentParser(description="It does boss shit")
+    args = argparse.ArgumentParser(description="""Creates a server that serves HLS streams for SiriusXM channels and
+    optionally records programs from specified channels.
+    """)
     args.add_argument(
         "-u",
         "--user",
@@ -783,7 +785,7 @@ def parse_args():
         help="The pass to use for authentication",
         default=os.environ.get("SIRIUSXM_PASS"),
     )
-    args.add_argument("--port", help="The port to listen on", default=8888, type=int)
+    args.add_argument("--port", help="The port to listen on (default: 8888)", default=8888, type=int)
     args.add_argument(
         "-c",
         "--channel",
