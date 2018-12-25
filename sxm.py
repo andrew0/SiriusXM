@@ -181,7 +181,7 @@ class SiriusXM:
         try:
             self.update_interval = int(
                 data['ModuleListResponse']['moduleList']['modules'][0]['updateFrequency']
-            ) - 5
+            )
             message = data['ModuleListResponse']['messages'][0]['message']
             message_code = data['ModuleListResponse']['messages'][0]['code']
         except (KeyError, IndexError):
