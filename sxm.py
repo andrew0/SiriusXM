@@ -12,7 +12,7 @@ class SiriusXM:
     REST_FORMAT = 'https://player.siriusxm.com/rest/v2/experience/modules/{}'
     LIVE_PRIMARY_HLS = 'https://siriusxm-priprodlive.akamaized.net'
 
-    def __init__(self, username, password):
+    def __init__(self, username, password, update_handler=None):
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': self.USER_AGENT})
         self.username = username
@@ -23,6 +23,9 @@ class SiriusXM:
         # vars to manage session cache
         self.last_renew = None
         self.update_interval = 30
+
+        # hook function to call whenever the playlist updates
+        self.update_handler = update_handler
 
     @staticmethod
     def log(x):
@@ -213,6 +216,9 @@ class SiriusXM:
                 playlist_url = playlist_info['url'].replace('%Live_Primary_HLS%', self.LIVE_PRIMARY_HLS)
                 self.playlists[channel_id] = self.get_playlist_variant_url(playlist_url)
                 self.last_renew = time.time()
+
+                if self.update_handler is not None:
+                    self.update_handler(data)
                 return self.playlists[channel_id]
 
         return None
