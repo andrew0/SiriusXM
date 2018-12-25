@@ -12,13 +12,20 @@ class SiriusXM:
     REST_FORMAT = 'https://player.siriusxm.com/rest/v2/experience/modules/{}'
     LIVE_PRIMARY_HLS = 'https://siriusxm-priprodlive.akamaized.net'
 
-    def __init__(self, username, password):
+    def __init__(self, username, password, update_handler=None):
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': self.USER_AGENT})
         self.username = username
         self.password = password
         self.playlists = {}
         self.channels = None
+
+        # vars to manage session cache
+        self.last_renew = None
+        self.update_interval = 30
+
+        # hook function to call whenever the playlist updates
+        self.update_handler = update_handler
 
     @staticmethod
     def log(x):
@@ -147,8 +154,14 @@ class SiriusXM:
             return None
 
     def get_playlist_url(self, guid, channel_id, use_cache=True, max_attempts=5):
+        now = time.time()
+
         if use_cache and channel_id in self.playlists:
-             return self.playlists[channel_id]
+            if self.last_renew is None or \
+                    (now - self.last_renew) > self.update_interval:
+                del self.playlists[channel_id]
+            else:
+                return self.playlists[channel_id]
 
         params = {
             'assetGUID': guid,
@@ -166,7 +179,9 @@ class SiriusXM:
 
         # get status
         try:
-            status = data['ModuleListResponse']['status']
+            self.update_interval = int(
+                data['ModuleListResponse']['moduleList']['modules'][0]['updateFrequency']
+            )
             message = data['ModuleListResponse']['messages'][0]['message']
             message_code = data['ModuleListResponse']['messages'][0]['code']
         except (KeyError, IndexError):
@@ -200,6 +215,10 @@ class SiriusXM:
             if playlist_info['size'] == 'LARGE':
                 playlist_url = playlist_info['url'].replace('%Live_Primary_HLS%', self.LIVE_PRIMARY_HLS)
                 self.playlists[channel_id] = self.get_playlist_variant_url(playlist_url)
+                self.last_renew = time.time()
+
+                if self.update_handler is not None:
+                    self.update_handler(data)
                 return self.playlists[channel_id]
 
         return None
@@ -215,12 +234,12 @@ class SiriusXM:
         if res.status_code != 200:
             self.log('Received status code {} on playlist variant retrieval'.format(res.status_code))
             return None
-        
+
         for x in res.text.split('\n'):
             if x.rstrip().endswith('.m3u8'):
                 # first variant should be 256k one
                 return '{}/{}'.format(url.rsplit('/', 1)[0], x.rstrip())
-        
+
         return None
 
     def get_playlist(self, name, use_cache=True):
@@ -277,7 +296,7 @@ class SiriusXM:
             return None
 
         return res.content
-    
+
     def get_channels(self):
         # download channel list if necessary
         if not self.channels:
@@ -356,11 +375,11 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--list', required=False, action='store_true', default=False)
     parser.add_argument('-p', '--port', required=False, default=9999, type=int)
     args = vars(parser.parse_args())
-    
+
     sxm = SiriusXM(args['username'], args['password'])
     if args['list']:
         channels = list(sorted(sxm.get_channels(), key=lambda x: (not x.get('isFavorite', False), int(x.get('siriusChannelNumber', 9999)))))
-        
+
         l1 = max(len(x.get('channelId', '')) for x in channels)
         l2 = max(len(str(x.get('siriusChannelNumber', 0))) for x in channels)
         l3 = max(len(x.get('name', '')) for x in channels)
