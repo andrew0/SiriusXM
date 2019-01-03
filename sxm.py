@@ -12,13 +12,14 @@ class SiriusXM:
     REST_FORMAT = 'https://player.siriusxm.com/rest/v2/experience/modules/{}'
     LIVE_PRIMARY_HLS = 'https://siriusxm-priprodlive.akamaized.net'
 
-    def __init__(self, username, password):
+    def __init__(self, username, password, region):
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': self.USER_AGENT})
         self.username = username
         self.password = password
         self.playlists = {}
         self.channels = None
+        self.region = region
 
     @staticmethod
     def log(x):
@@ -74,7 +75,7 @@ class SiriusXM:
                             'sxmAppVersion': '3.1802.10011.0',
                             'browser': 'Safari',
                             'browserVersion': '11.0.3',
-                            'appRegion': 'US',
+                            'appRegion': self.region,
                             'deviceModel': 'K2WebClient',
                             'clientDeviceId': 'null',
                             'player': 'html5',
@@ -115,7 +116,7 @@ class SiriusXM:
                             'sxmAppVersion': '3.1802.10011.0',
                             'browser': 'Safari',
                             'browserVersion': '11.0.3',
-                            'appRegion': 'US',
+                            'appRegion': self.region,
                             'deviceModel': 'K2WebClient',
                             'player': 'html5',
                             'clientDeviceId': 'null'
@@ -355,9 +356,10 @@ if __name__ == '__main__':
     parser.add_argument('password')
     parser.add_argument('-l', '--list', required=False, action='store_true', default=False)
     parser.add_argument('-p', '--port', required=False, default=9999, type=int)
+    parser.add_argument('-ca', '--canada', required=False, action='store_true', default=False)
     args = vars(parser.parse_args())
-    
-    sxm = SiriusXM(args['username'], args['password'])
+
+    sxm = SiriusXM(args['username'], args['password'], 'CA' if args['canada'] else 'US')
     if args['list']:
         channels = list(sorted(sxm.get_channels(), key=lambda x: (not x.get('isFavorite', False), int(x.get('siriusChannelNumber', 9999)))))
         
