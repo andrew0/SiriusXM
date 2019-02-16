@@ -359,6 +359,11 @@ if __name__ == '__main__':
     args = vars(parser.parse_args())
     
     sxm = SiriusXM(os.getenv('SXM_USERNAME'), os.getenv('SXM_PASSWORD'))
+    vlc_flag = False
+
+    if args['vlc']:
+        vlc_flag = True
+    
     if args['list']:
         channels = list(sorted(sxm.get_channels(), key=lambda x: (not x.get('isFavorite', False), int(x.get('siriusChannelNumber', 9999)))))
         
@@ -371,11 +376,11 @@ if __name__ == '__main__':
             cnum = str(channel.get('siriusChannelNumber', '??')).ljust(l2)[:l2]
             cname = channel.get('name', '??').ljust(l3)[:l3]
             print('{} | {} | {}'.format(cid, cnum, cname))
-    elif args['vlc']:
-        pass
     else:
         httpd = HTTPServer(('', args['port']), make_sirius_handler(sxm))
         try:
+            if vlc_flag is True:
+                print('VLC Flag was recognized.')
             httpd.serve_forever()
         except KeyboardInterrupt:
             pass
