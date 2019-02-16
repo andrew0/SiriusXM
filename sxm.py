@@ -5,6 +5,7 @@ import urllib.parse
 import json
 import time, datetime
 import sys
+import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 class SiriusXM:
@@ -351,13 +352,11 @@ def make_sirius_handler(sxm):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='SiriusXM proxy')
-    parser.add_argument('username')
-    parser.add_argument('password')
     parser.add_argument('-l', '--list', required=False, action='store_true', default=False)
     parser.add_argument('-p', '--port', required=False, default=9999, type=int)
     args = vars(parser.parse_args())
     
-    sxm = SiriusXM(args['username'], args['password'])
+    sxm = SiriusXM(os.getenv('SXM_USERNAME'), os.getenv('SXM_PASSWORD'))
     if args['list']:
         channels = list(sorted(sxm.get_channels(), key=lambda x: (not x.get('isFavorite', False), int(x.get('siriusChannelNumber', 9999)))))
         

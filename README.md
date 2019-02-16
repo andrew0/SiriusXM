@@ -1,12 +1,67 @@
 # SiriusXM
 
-This script creates a server that serves HLS streams for SiriusXM channels. To use it, pass your SiriusXM username and password and a port to run the server on. For example, you start the server by running:
-`python3 sxm.py myuser mypassword -p 8888`
+This script creates a server that serves HLS streams for SiriusXM channels.
 
+## Table of Contents
+- [SiriusXM](#siriusxm)
+  - [Table of Contents](#table-of-contents)
+    - [Authentication](#authentication)
+    - [Usage](#usage)
+      - [Pre-Requisites](#pre-requisites)
+      - [Quick Start](#quick-start)
+      - [List SiriusXM Channels](#list-siriusxm-channels)
+    - [How to Listen](#how-to-listen)
+    - [License](#license)
+
+### Authentication
+
+Authentication is set in an `sxmlogin.cred` file that you create in the root directory in this format:
+
+```
+SXM_USERNAME=siriusxmusername
+SXM_PASSWORD=siriusxmpassword
+```
+
+and added to your environment variables: `source sxmlogin.cred`
+
+### Usage
+
+#### Pre-Requisites
+
+After setting [Authentication](#authentication), you may procede with the following.
+
+#### Quick Start
+
+To use it, pass a port to run the server on.  For example, you start the server by running:
+
+```shell
+./sxm.py -p 8888
+```
+
+#### List SiriusXM Channels
 You can see a list of the channels by setting the -l or --list flag:
-`python3 sxm.py myuser mypassword -l`
 
-Then in a player that supports HLS (QuickTime, VLC, ffmpeg, etc) you can access a channel at http://127.0.0.1:8888/channel.m3u8 where "channel" is the channel name, ID, or Sirius channel number.
+```shell
+./sxm.py -l
+```
+
+### How to Listen
+
+Then in a player that supports HLS (QuickTime, VLC, ffmpeg, etc) you can access a channel at http://127.0.0.1:8888/channel.m3u8 where `channel` is the channel name, ID, or SiriusXM channel number.
+
+I use [VLC](https://www.videolan.org/vlc/index.html) and am planning towards automating the launch of channels in there.
+
+If you know what channel you're looking for, an easy way of searching for info is like:
+
+```shell
+./sxm.py -l | grep <channel_name>
+```
+
+The one I use the most is:
+
+```shell
+./sxm.py -l | grep lithium
+```
 
 Here's a list of some of the channel IDs:
 
@@ -401,3 +456,6 @@ Here's a list of some of the channel IDs:
 | CBC Country                       | bandeapart          |
 | Boston Bruins                     | 9297                |
 | Holiday Traditions                | 9342                |
+
+### License
+[MIT](LICENSE.md)
