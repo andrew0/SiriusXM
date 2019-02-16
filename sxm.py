@@ -7,6 +7,7 @@ import time, datetime
 import sys
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import vlc
 
 class SiriusXM:
     USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/604.5.6 (KHTML, like Gecko) Version/11.0.3 Safari/604.5.6'
@@ -354,6 +355,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='SiriusXM proxy')
     parser.add_argument('-l', '--list', required=False, action='store_true', default=False)
     parser.add_argument('-p', '--port', required=False, default=9999, type=int)
+    parser.add_argument('-v', '--vlc', required=False, action='store_true', default=False)
     args = vars(parser.parse_args())
     
     sxm = SiriusXM(os.getenv('SXM_USERNAME'), os.getenv('SXM_PASSWORD'))
@@ -369,6 +371,8 @@ if __name__ == '__main__':
             cnum = str(channel.get('siriusChannelNumber', '??')).ljust(l2)[:l2]
             cname = channel.get('name', '??').ljust(l3)[:l3]
             print('{} | {} | {}'.format(cid, cnum, cname))
+    elif args['vlc']:
+        pass
     else:
         httpd = HTTPServer(('', args['port']), make_sirius_handler(sxm))
         try:
