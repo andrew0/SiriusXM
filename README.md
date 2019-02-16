@@ -15,14 +15,16 @@ This script creates a server that serves HLS streams for SiriusXM channels.
 
 ### Authentication
 
-Authentication is set in an `sxmlogin.cred` file that you create in the root directory in this format:
+Authentication is expected in the environment variables `SXM_USERNAME` and `SXM_PASSWORD`.
+
+To automatically set authentication, in an `sxmlogin.cred` file that you create in the root directory, use  this format:
 
 ```
 SXM_USERNAME=siriusxmusername
 SXM_PASSWORD=siriusxmpassword
 ```
 
-and added to your environment variables: `source sxmlogin.cred`
+and add them to your environment variables: `source sxmlogin.cred`
 
 ### Usage
 
