@@ -387,7 +387,7 @@ class VLC:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='SiriusXM proxy')
     parser.add_argument('-l', '--list', required=False, action='store_true', default=False, help='list all available SiriuxXM channels')
-    parser.add_argument('-p', '--port', required=False, default=9999, type=int, help='the port from which the SiriusXM live stream is served')
+    parser.add_argument('-p', '--port', required=False, default=8888, type=int, help='the port from which the SiriusXM live stream is served')
     parser.add_argument('-v', '--vlc', required=False, action='store_true', default=False, help='auto-play on VLC (if installed)')
     parser.add_argument('-c', '--channel', required=False, type=str, help='if --vlc is used, the channel to auto-play in VLC')
     args = vars(parser.parse_args())
@@ -423,5 +423,6 @@ if __name__ == '__main__':
             httpd.serve_forever()
         except KeyboardInterrupt:
             pass
-        sxmplayer.stop()
+        if vlc_flag is True:
+            sxmplayer.stop()
         httpd.server_close()
