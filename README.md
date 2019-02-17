@@ -1,6 +1,6 @@
 # SiriusXM
 
-![TravisCI Build Status](https://travis-ci.org/infamousjoeg/SiriusXM.svg?branch=feature-travisci)
+![TravisCI Build Status](https://travis-ci.org/infamousjoeg/SiriusXM.svg?branch=master)
 
 This script creates a server that serves HLS streams for SiriusXM channels.
 
