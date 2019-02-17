@@ -1,11 +1,12 @@
 import argparse
-import requests
 import base64
 import urllib.parse
 import json
 import time, datetime
 import sys
 import os
+
+import requests
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import vlc
 
@@ -22,15 +23,19 @@ class SiriusXM:
         self.playlists = {}
         self.channels = None
 
+
     @staticmethod
     def log(x):
         print('{} <SiriusXM>: {}'.format(datetime.datetime.now().strftime('%d.%b %Y %H:%M:%S'), x))
 
+
     def is_logged_in(self):
         return 'SXMAUTH' in self.session.cookies
 
+
     def is_session_authenticated(self):
         return 'AWSELB' in self.session.cookies and 'JSESSIONID' in self.session.cookies
+
 
     def get(self, method, params, authenticate=True):
         if authenticate and not self.is_session_authenticated() and not self.authenticate():
@@ -48,6 +53,7 @@ class SiriusXM:
             self.log('Error decoding json for method \'{}\''.format(method))
             return None
 
+
     def post(self, method, postdata, authenticate=True):
         if authenticate and not self.is_session_authenticated() and not self.authenticate():
             self.log('Unable to authenticate')
@@ -63,6 +69,7 @@ class SiriusXM:
         except ValueError:
             self.log('Error decoding json for method \'{}\''.format(method))
             return None
+
 
     def login(self):
         postdata = {
@@ -100,6 +107,7 @@ class SiriusXM:
             self.log('Error decoding json response for login')
             return False
 
+
     def authenticate(self):
         if not self.is_logged_in() and not self.login():
             self.log('Unable to authenticate because login failed')
@@ -136,17 +144,20 @@ class SiriusXM:
             self.log('Error parsing json response for authentication')
             return False
 
+
     def get_sxmak_token(self):
         try:
             return self.session.cookies['SXMAKTOKEN'].split('=', 1)[1].split(',', 1)[0]
         except (KeyError, IndexError):
             return None
 
+
     def get_gup_id(self):
         try:
             return json.loads(urllib.parse.unquote(self.session.cookies['SXMDATA']))['gupId']
         except (KeyError, ValueError):
             return None
+
 
     def get_playlist_url(self, guid, channel_id, use_cache=True, max_attempts=5):
         if use_cache and channel_id in self.playlists:
@@ -206,6 +217,7 @@ class SiriusXM:
 
         return None
 
+
     def get_playlist_variant_url(self, url):
         params = {
             'token': self.get_sxmak_token(),
@@ -224,6 +236,7 @@ class SiriusXM:
                 return '{}/{}'.format(url.rsplit('/', 1)[0], x.rstrip())
         
         return None
+
 
     def get_playlist(self, name, use_cache=True):
         guid, channel_id = self.get_channel(name)
@@ -256,6 +269,7 @@ class SiriusXM:
                 lines[x] = '{}/{}'.format(base_path, lines[x])
         return '\n'.join(lines)
 
+
     def get_segment(self, path, max_attempts=5):
         url = '{}/{}'.format(self.LIVE_PRIMARY_HLS, path)
         params = {
@@ -279,6 +293,7 @@ class SiriusXM:
             return None
 
         return res.content
+
     
     def get_channels(self):
         # download channel list if necessary
@@ -309,12 +324,14 @@ class SiriusXM:
                 return []
         return self.channels
 
+
     def get_channel(self, name):
         name = name.lower()
         for x in self.get_channels():
             if x.get('name', '').lower() == name or x.get('channelId', '').lower() == name or x.get('siriusChannelNumber') == name:
                 return (x['channelGuid'], x['channelId'])
         return (None, None)
+
 
 def make_sirius_handler(sxm):
     class SiriusHandler(BaseHTTPRequestHandler):
@@ -351,11 +368,28 @@ def make_sirius_handler(sxm):
                 self.end_headers()
     return SiriusHandler
 
+
+class VLC:
+    def __init__(self, filepath):
+        self.filepath = filepath
+        player = vlc.MediaPlayer(filepath)
+        player.play()
+
+
+    def pause(self):
+        self.pause()
+
+
+    def stop(self):
+        self.stop
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='SiriusXM proxy')
-    parser.add_argument('-l', '--list', required=False, action='store_true', default=False)
-    parser.add_argument('-p', '--port', required=False, default=9999, type=int)
-    parser.add_argument('-v', '--vlc', required=False, action='store_true', default=False)
+    parser.add_argument('-l', '--list', required=False, action='store_true', default=False, help='list all available SiriuxXM channels')
+    parser.add_argument('-p', '--port', required=False, default=9999, type=int, help='the port from which the SiriusXM live stream is served')
+    parser.add_argument('-v', '--vlc', required=False, action='store_true', default=False, help='auto-play on VLC (if installed)')
+    parser.add_argument('-c', '--channel', required=False, type=str, help='if --vlc is used, the channel to auto-play in VLC')
     args = vars(parser.parse_args())
     
     sxm = SiriusXM(os.getenv('SXM_USERNAME'), os.getenv('SXM_PASSWORD'))
@@ -380,8 +414,14 @@ if __name__ == '__main__':
         httpd = HTTPServer(('', args['port']), make_sirius_handler(sxm))
         try:
             if vlc_flag is True:
+                if not args['channel']:
+                    print('You need to select a channel so VLC can auto-launch it.')
+                    print('Try again with the -c or --channel argument.')
+                    sys.exit()
                 print('VLC Flag was recognized.')
+                sxmplayer = VLC('http://127.0.0.1:{port}/{channel}.m3u8'.format(port=args['port'],channel=args['channel']))
             httpd.serve_forever()
         except KeyboardInterrupt:
             pass
+        sxmplayer.stop()
         httpd.server_close()

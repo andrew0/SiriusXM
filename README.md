@@ -51,7 +51,7 @@ You can see a list of the channels by setting the -l or --list flag:
 
 Then in a player that supports HLS (QuickTime, VLC, ffmpeg, etc) you can access a channel at http://127.0.0.1:8888/channel.m3u8 where `channel` is the channel name, ID, or SiriusXM channel number.
 
-I use [VLC](https://www.videolan.org/vlc/index.html) and am planning towards automating the launch of channels in there.
+I use [VLC](https://www.videolan.org/vlc/index.html) and have included support for auto-launching a SiriusXM channel in the terminal using VLC.
 
 If you know what channel you're looking for, an easy way of searching for info is like:
 
@@ -63,6 +63,12 @@ The one I use the most is:
 
 ```shell
 ./sxm.py -l | grep lithium
+```
+
+Then, to auto-launch VLC with the channel selected, it's as easy as:
+
+```shell
+./sxm.py -p 8888 --vlc --channel lithium
 ```
 
 Here's a list of some of the channel IDs:
