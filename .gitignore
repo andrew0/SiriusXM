@@ -58,3 +58,6 @@ target/
 
 # SXM Credentials
 sxmlogin.cred.test
+
+# Visual Studio Code Settings
+.vscode/

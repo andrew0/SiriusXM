@@ -1,14 +1,16 @@
 import argparse
 import base64
-import urllib.parse
+import datetime
 import json
-import time, datetime
-import sys
 import os
+import sys
+import time
+import urllib.parse
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import requests
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import vlc
+
 
 class SiriusXM:
     USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/604.5.6 (KHTML, like Gecko) Version/11.0.3 Safari/604.5.6'
