@@ -1,0 +1,11 @@
+-i https://pypi.org/simple
+certifi==2018.11.29
+chardet==3.0.4
+crypto==1.4.1
+idna==2.8
+naked==0.1.31
+python-vlc==3.0.4106
+pyyaml==3.13
+requests==2.21.0
+shellescape==3.4.1
+urllib3==1.24.1
