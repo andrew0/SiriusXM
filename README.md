@@ -43,7 +43,8 @@ The following is an example `config.json`
     "DJ_Muggs_&_Ern_D": {
         "artist": "DJ Muggs & Ern Dogg",
         "album": "Soul Assassins Radio",
-        "genre": "Hip-Hop"
+        "genre": "Hip-Hop",
+        "track_count": 1
       }
   }
 }
@@ -57,7 +58,13 @@ match the title of your show partially.
 The `tags` (optional) section uses the short title
 from the XM API as the key for tagging data. You can get this from the API 
 yourself or just add it after you've added a show (the short title is in the
-filename). 
+filename). Each entry in the tags list will be matched on the short
+title and your MP3 file will be tagged with whatever you enter for
+artist, album and genre.
+
+If you're just addin ga new entry to the tags list, set the track_count
+to 0. The tagging code will increment this value for each new occurrence
+of the show.
 
 
 ## Usage
