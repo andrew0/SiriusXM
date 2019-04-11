@@ -236,9 +236,7 @@ class SiriusXM:
         if now_playing is None:
             pass
 
-        for marker_list in now_playing["ModuleListResponse"]["moduleList"]["modules"][
-            0
-        ]["moduleResponse"]["liveChannelData"]["markerLists"]:
+        for marker_list in now_playing["ModuleListResponse"]["moduleList"]["modules"][0]["moduleResponse"]["liveChannelData"]["markerLists"]:
 
             # The location of the episode layer is not always the same!
             if marker_list["layer"] in ["episode", "future-episode"]:
@@ -622,7 +620,10 @@ class SiriusXMRipper(object):
         episode = None
 
         while not episodes:
-            episodes = self.handler.sxm.get_episodes(self.channel)
+            try:
+                episodes = self.handler.sxm.get_episodes(self.channel)
+            except KeyError as e:
+                self.handler.sxm.log("Episodes list seems borked.. will retry..")
 
             if episodes is not None:
                 episode = self.get_current_episode(episodes)
@@ -667,6 +668,7 @@ class SiriusXMRipper(object):
                 # A new episode has started; terminate recording
                 if self.proc is not None:
                     self.proc.terminate()
+
                     while not self.proc.poll():
                         self.handler.sxm.log("Waiting for ffmpeg to terminate..")
                         time.sleep(1)
@@ -770,9 +772,7 @@ class SiriusXMRipper(object):
 
 
 def parse_args():
-    args = argparse.ArgumentParser(description="""Creates a server that serves HLS streams for SiriusXM channels and
-    optionally records programs from specified channels.
-    """)
+    args = argparse.ArgumentParser(description="It does boss shit")
     args.add_argument(
         "-u",
         "--user",
@@ -785,7 +785,7 @@ def parse_args():
         help="The pass to use for authentication",
         default=os.environ.get("SIRIUSXM_PASS"),
     )
-    args.add_argument("--port", help="The port to listen on (default: 8888)", default=8888, type=int)
+    args.add_argument("--port", help="The port to listen on", default=8888, type=int)
     args.add_argument(
         "-c",
         "--channel",
