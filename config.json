@@ -1,0 +1,70 @@
+{
+    "bitrate": "160k",
+    "shows": [
+        "Tony Touch",
+        "Whoo Kid",
+        "L.A. Leakers",
+        "Aphilliates",
+        "Soul Assassins",
+        "Statik Selektah",
+        "Animal Status",
+        "Scram",
+        "DJ Premier"
+    ],
+    "tags": {
+        "Animal_Status": {
+            "artist": "DJ Wonder",
+            "album": "Animal Status",
+            "genre": "Hip-Hop",
+            "track_count": 23
+        },
+        "DJ_Muggs_&_Ern_D": {
+            "artist": "DJ Muggs & Ern Dogg",
+            "album": "Soul Assassins Radio",
+            "genre": "Hip-Hop",
+            "track_count": 25
+        },
+        "DJ_Premier": {
+            "artist": "DJ Premier",
+            "album": "Live from HeadQCourterz",
+            "genre": "Hip-Hop",
+            "track_count": 24
+        },
+        "L.A._Leakers": {
+            "artist": "L.A. Leakers",
+            "album": "#LEAKShow",
+            "genre": "Hip-Hop",
+            "track_count": 23
+        },
+        "Scram_Jones": {
+            "artist": "Scram Jones",
+            "album": "#BeastMusicSXM",
+            "genre": "Hip-Hop",
+            "track_count": 22
+        },
+        "Showoff_Radio": {
+            "artist": "DJ Statik Selektah",
+            "album": "Showoff Radio",
+            "genre": "Hip-Hop",
+            "track_count": 19
+        },
+        "The_Aphilliates": {
+            "artist": "The Aphilliates",
+            "album": "Streetz Is Watchin'",
+            "genre": "Hip-Hop",
+            "track_count": 47
+        },
+        "Toca_Tuesdays": {
+            "artist": "Tony Touch",
+            "album": "Toca Tuesdays",
+            "genre": "Hip-Hop",
+            "track_count": 30
+        },
+        "Whoo_Kid": {
+            "artist": "DJ Whoo Kid",
+            "album": "Whoolywood Shuffle",
+            "genre": "Hip-Hop",
+            "track_count": 43
+        }
+    }
+}
