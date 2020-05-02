@@ -66,7 +66,7 @@ class SiriusXM:
         )
 
     def is_logged_in(self):
-        return "SXMAUTH" in self.session.cookies
+        return "SXMAUTHNEW" in self.session.cookies
 
     def is_session_authenticated(self):
         return "AWSELB" in self.session.cookies and "JSESSIONID" in self.session.cookies
