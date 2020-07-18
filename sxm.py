@@ -465,7 +465,7 @@ class SiriusXM:
             except Exception as e:
                 self.log(e)
 
-            channel_list_uri = "get/discover-channel-list?type=2&batch-mode=true&format=json&request-option=discover-channel-list-withpdt&result-template=web&time=1595089234094"
+            channel_list_uri = "get/discover-channel-list?type=2&batch-mode=true&format=json&request-option=discover-channel-list-withpdt&result-template=web"
             data = self.get(channel_list_uri, postdata)
             if not data:
                 self.log("Unable to get channel list")
