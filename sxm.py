@@ -563,6 +563,8 @@ def start_httpd(handler):
 
 
 class SiriusXMRipper(object):
+    DEFAULT_BITRATE = "160k"
+
     def __init__(self, handler, args):
         self.handler = handler
         self.episode = None
@@ -571,10 +573,18 @@ class SiriusXMRipper(object):
         self.proc = None
         self.completed_files = []
 
-        self.config = json.load(open("config.json", "r"))
-        self.bitrate = self.config["bitrate"]
-        self.recorded_shows = self.config["shows"]
-        self.tags = self.config["tags"]
+        try:
+            if args.file:
+                self.config = json.load(open(args.file, "r"))
+            else:
+                self.config = json.load(open("config.json"))
+        except Exception as e:
+            self.handler.sxm.log(f"\033[0;31mWARNING: No config file specified and no default config.json found in relative script path -- entering default mode; bitrate: {self.DEFAULT_BITRATE}\033[0m")
+            self.config = {}
+
+        self.bitrate = self.config.get("bitrate", self.DEFAULT_BITRATE)
+        self.recorded_shows = self.config.get("shows", [])
+        self.tags = self.config.get("tags", {})
 
         self.track_parts = defaultdict(int)
         self.current_filename = None
@@ -738,8 +748,11 @@ class SiriusXMRipper(object):
             self.tag_file(f"{self.output_directory}/{self.current_filename}")
 
     def tag_file(self, filename):
+        if self.config == {}:
+            return
+
         playlist = None
-        with open("config.json", encoding="utf-8") as f:
+        with open(self.config, encoding="utf-8") as f:
             text = f.read()
             playlist = json.loads(text)
 
@@ -790,7 +803,7 @@ class SiriusXMRipper(object):
         mp3.tag.track_num = playlist["tags"].get(playlist_match).get("track_count")
         mp3.tag.save()
 
-        with open("config.json", "w") as config:
+        with open(self.config, "w") as config:
             config.write(json.dumps(playlist, indent=4))
 
         self.handler.sxm.log("Track parts")
@@ -832,6 +845,13 @@ def parse_args():
         "--output-directory",
         help="Specify a target directory for dumping (defaults to cwd)",
         default=os.path.abspath("."),
+    )
+
+    args.add_argument(
+        "-f",
+        "--file",
+        help="Optional, config file to use",
+        default=None
     )
 
     return args.parse_args()
