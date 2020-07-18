@@ -50,12 +50,13 @@ class SiriusXM:
     REST_FORMAT = "https://player.siriusxm.com/rest/v2/experience/modules/{}"
     LIVE_PRIMARY_HLS = "https://siriusxm-priprodlive.akamaized.net"
 
-    def __init__(self, username, password):
+    def __init__(self, username, password, output_directory=os.path.abspath(".")):
         self.username = username
         self.password = password
         self.reset_session()
         self.playlists = {}
         self.channels = None
+        self.output_directory = output_directory
 
     @staticmethod
     def log(x):
@@ -200,6 +201,8 @@ class SiriusXM:
                 ]
             }
         }
+
+        # TODO: This raised an exception on DNS lookup
         data = self.post("resume?OAtrial=false", postdata, authenticate=False)
         if not data:
             return False
@@ -215,6 +218,7 @@ class SiriusXM:
 
     def get_sxmak_token(self):
         try:
+            # return "d=1588403836_6524c27821b08a50a19157a06934f59e,v=1,"
             return self.session.cookies["SXMAKTOKEN"].split("=", 1)[1].split(",", 1)[0]
         except (KeyError, IndexError):
             return None
@@ -236,7 +240,9 @@ class SiriusXM:
         if now_playing is None:
             pass
 
-        for marker_list in now_playing["ModuleListResponse"]["moduleList"]["modules"][0]["moduleResponse"]["liveChannelData"]["markerLists"]:
+        for marker_list in now_playing["ModuleListResponse"]["moduleList"]["modules"][
+            0
+        ]["moduleResponse"]["liveChannelData"]["markerLists"]:
 
             # The location of the episode layer is not always the same!
             if marker_list["layer"] in ["episode", "future-episode"]:
@@ -452,7 +458,15 @@ class SiriusXM:
                     ]
                 }
             }
-            data = self.post("get", postdata)
+
+            try:
+                if not self.is_session_authenticated():
+                    self.authenticate()
+            except Exception as e:
+                self.log(e)
+
+            channel_list_uri = "get/discover-channel-list?type=2&batch-mode=true&format=json&request-option=discover-channel-list-withpdt&result-template=web&time=1595089234094"
+            data = self.get(channel_list_uri, postdata)
             if not data:
                 self.log("Unable to get channel list")
                 return None, None
@@ -460,7 +474,7 @@ class SiriusXM:
             try:
                 self.channels = data["ModuleListResponse"]["moduleList"]["modules"][0][
                     "moduleResponse"
-                ]["contentData"]["channelListing"]["channels"]
+                ]["moduleDetails"]["liveChannelResponse"]["liveChannelResponses"]
             except (KeyError, IndexError):
                 self.log("Error parsing json response for channels")
                 return []
@@ -469,19 +483,26 @@ class SiriusXM:
     def get_channel(self, name):
         name = name.lower()
         for x in self.get_channels():
-            if (
-                x.get("name", "").lower() == name
-                or x.get("channelId", "").lower() == name
-                or x.get("siriusChannelNumber") == name
-            ):
-                return x["channelGuid"], x["channelId"]
+            try:
+                if (
+                    x.get("name", "").lower() == name
+                    or x.get("channelId", "").lower() == name
+                    or x.get("siriusChannelNumber") == name
+                ):
+                    return (
+                        x["markerLists"][0]["markers"][0]["containerGUID"],
+                        x["channelId"],
+                    )
+            except Exception as e:
+                self.log(e)
+
         return None, None
 
 
 def make_sirius_handler(args):
     class SiriusHandler(BaseHTTPRequestHandler):
         HLS_AES_KEY = base64.b64decode("0Nsco7MAgxowGvkUT8aYag==")
-        sxm = SiriusXM(args.user, args.passwd)
+        sxm = SiriusXM(args.user, args.passwd, args.output_directory)
 
         def do_GET(self):
             if self.path.endswith(".m3u8"):
@@ -557,10 +578,15 @@ class SiriusXMRipper(object):
 
         self.track_parts = defaultdict(int)
         self.current_filename = None
+        self.output_directory = args.output_directory
 
         self.handler.sxm.log("\033[0;4;32mRecording the following shows\033[0m")
         for show in self.recorded_shows:
             self.handler.sxm.log("\t{}".format(show))
+
+        self.handler.sxm.log(
+            f"\033[0;4;32mDumping music to: {args.output_directory}\033[0m"
+        )
 
         self.handler.sxm.log("\033[0;4;32mAutomatic tagging data\033[0m")
         for show, metadata in self.tags.items():
@@ -674,7 +700,7 @@ class SiriusXMRipper(object):
                         time.sleep(1)
 
                     self.proc = None
-                    self.tag_file(self.current_filename)
+                    self.tag_file(f"{self.output_directory}/{self.current_filename}")
 
             if self.should_record_episode(episode):
                 if (
@@ -695,8 +721,8 @@ class SiriusXMRipper(object):
             )
             self.current_filename = filename
 
-            cmd = "ffmpeg -i http://127.0.0.1:8888/{}.m3u8 -acodec libmp3lame -ac 2 -ab {} {}".format(
-                self.channel, self.bitrate, filename
+            cmd = "ffmpeg -i http://127.0.0.1:8888/{}.m3u8 -acodec libmp3lame -ac 2 -ab {} {}/{}".format(
+                self.channel, self.bitrate, self.output_directory, filename
             )
 
             self.handler.sxm.log("Executing: {}".format(cmd))
@@ -709,7 +735,7 @@ class SiriusXMRipper(object):
                 "Exception occurred in Ripper.rip_stream: {}".format(e)
             )
             self.handler.sxm.log("Tagging file before recovering stream..")
-            self.tag_file(self.current_filename)
+            self.tag_file(f"{self.output_directory}/{self.current_filename}")
 
     def tag_file(self, filename):
         playlist = None
@@ -719,7 +745,7 @@ class SiriusXMRipper(object):
 
         x = "|".join(playlist["tags"].keys())
         playlist_regex = re.compile(x, re.IGNORECASE)
-        date_regex = re.compile("^(\d{4})-(\d{2})-(\d{2})")
+        date_regex = re.compile("(\d{4})-(\d{2})-(\d{2})")
         track_parts = defaultdict(int)
 
         if not filename.endswith(".mp3"):
@@ -801,6 +827,12 @@ def parse_args():
         action="store_true",
         default=False,
     )
+    args.add_argument(
+        "-o",
+        "--output-directory",
+        help="Specify a target directory for dumping (defaults to cwd)",
+        default=os.path.abspath("."),
+    )
 
     return args.parse_args()
 
@@ -829,9 +861,17 @@ def get_channel_list(sxm):
 
 def main():
     args = parse_args()
+
+    if not os.path.isdir(args.output_directory):
+        raise Exception(
+            f"The target output directory {args.output_directory} is not a valid directory"
+        )
+
     if args.user is None or args.passwd is None:
-        raise Exception("Missing username or password. You can also set these as environment variables "
-                        "SIRIUSXM_USER, SIRIUSXM_PASS")
+        raise Exception(
+            "Missing username or password. You can also set these as environment variables "
+            "SIRIUSXM_USER, SIRIUSXM_PASS"
+        )
 
     sirius_handler = make_sirius_handler(args)
 
