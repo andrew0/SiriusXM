@@ -1,5 +1,13 @@
 # SiriusXM
 
+This is forked from andrew0 with minimal changes:
+
+* Updated cookie name (so that the system actually authenticates now...)
+* Added -e (--env) parameter to use SXM_USER and SXM_PASS environment variables to override username and password on command line
+  * Note: The username and password parameters are still required:  just put something like "user" and "pass".
+    
+Original Readme:
+
 This script creates a server that serves HLS streams for SiriusXM channels. To use it, pass your SiriusXM username and password and a port to run the server on. For example, you start the server by running:
 `python3 sxm.py myuser mypassword -p 8888`
 
