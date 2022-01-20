@@ -3,7 +3,7 @@
 This is forked from andrew0 with minimal changes:
 
 * Updated SXM auth cookie name (so that the system actually authenticates now...)
-* Updated AWS cookie name (again, si that it actually authenticates again...)
+* Updated AWS cookie name (again, so that it actually authenticates again...)
 * Added -e (--env) parameter to use SXM_USER and SXM_PASS environment variables to override username and password on command line
   * Note: The username and password parameters are still required:  just put something like "user" and "pass".
 * I added a geric systemd unit file and an override file customized for my use case.
