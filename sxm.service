@@ -1,7 +1,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 # sxm.py  Orginal code:   https://github.com/andrew0/SiriusXM
-# Updated fork at:  https://github.com/fts-tmassey/SiriusXM
+# Updated fork at:  https://github.com/mim-tmassey/SiriusXM
 #
 [Unit]
 Description=SiriusXM Channel Service
